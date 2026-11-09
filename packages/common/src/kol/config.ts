@@ -42,8 +42,6 @@ export function setDefaultConfig() {
   setvar('BaleOCD_Stock', toInt(0)); // Needed to coerce JS number to ASH int
   // Should Hangk's Storange be emptied? (0: no, 1: yes)
   setvar('BaleOCD_EmptyHangks', toInt(0)); // Needed to coerce JS number to ASH int
-  // Whether to mallsell any uncategorized items (DANGEROUS)
-  setvar('BaleOCD_MallDangerously', false);
   // Controls whether to run OCD-Cleanup if the player is in Ronin/Hardcore.
   // -"ask": Ask the user
   // -"never": Never run if in Ronin/Hardcore

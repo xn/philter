@@ -242,8 +242,6 @@ function setDefaultConfig() {
     zlib_ash.setvar('BaleOCD_Stock', kolmafia.toInt(0)); // Needed to coerce JS number to ASH int
     // Should Hangk's Storange be emptied? (0: no, 1: yes)
     zlib_ash.setvar('BaleOCD_EmptyHangks', kolmafia.toInt(0)); // Needed to coerce JS number to ASH int
-    // Whether to mallsell any uncategorized items (DANGEROUS)
-    zlib_ash.setvar('BaleOCD_MallDangerously', false);
     // Controls whether to run OCD-Cleanup if the player is in Ronin/Hardcore.
     // -"ask": Ask the user
     // -"never": Never run if in Ronin/Hardcore
@@ -1103,8 +1101,8 @@ function printMallAndMakePriceCache(items, cleanupRules, config) {
         var lineValue = 0;
         for (var [item, amount] of chunk) {
             var msg = amount + " " + item;
-            // If BaleOCD_MallDangerously is set, we may be mallselling items that do
-            // not have a rule. If so, we must choose sensible defaults.
+            // Every MALL item has a rule (this fork never sells unlisted items),
+            // but keep the lookup tolerant for the type checker.
             var rule = cleanupRules.get(item);
             if (rule) {
                 ok(rule.action === 'MALL', ("Unexpected cleanup action for " + item + ": Expected 'MALL' but got '" + (rule.action) + "'"));
@@ -1219,36 +1217,21 @@ function cleanupAmount(item, cleanupRule, stockingRule) {
     // the closet, it counts against the amount you own.
     return Math.min(full - keep, kolmafia.itemAmount(item));
 }
-var CleanupPlanner = function CleanupPlanner() {
-    // When malling dangerously, don't ask the user about uncategorized items
-    this.shouldAskAboutUncategorizedItems = !kolmafia.toBoolean(zlib_ash.getvar('BaleOCD_MallDangerously'));
-};
-// Don't stop if "don't ask user" or it is a quest item, or it is being stocked.
-CleanupPlanner.prototype.checkStopForRelay = function checkStopForRelay (item, stockingRules) {
-    if (!this.shouldAskAboutUncategorizedItems || !isCleanable(item)) {
-        return false;
-    }
-    // If we need to stock up on the item, don't bother the user about it
+var CleanupPlanner = function CleanupPlanner () {};
+
+CleanupPlanner.prototype.noteUncategorized = function noteUncategorized (plan, item, stockingRules) {
+    if (!isCleanable(item))
+        { return; }
     var stockingRule = stockingRules.get(item);
-    if (stockingRule && fullAmount(item) <= stockingRule.amount) {
-        return false;
-    }
-    if (kolmafia.userConfirm('Uncategorized item(s) have been found in inventory.\nAbort to categorize those items with the relay script?')) {
-        throw new Error('Please use the relay script to categorize missing items in inventory.');
-    }
-    this.shouldAskAboutUncategorizedItems = false;
-    return false;
+    if (stockingRule && fullAmount(item) <= stockingRule.amount)
+        { return; }
+    plan.uncategorized.push(item);
 };
 /**
  * Examines the inventory and generates an appropriate execution plan.
- * If it finds uncategorized items in inventory, it asks the user whether it
- * should abort. If the user answers "No", it will not ask the user again for
- * the current `CleanupPlanner` instance.
+ * Uncategorized items are skipped and listed in one red line.
  * @param cleanupRules Cleanup rules to use
  * @param stockingRules Stocking rules to use
- * @return `true` if the user chose to continue, or was not asked at all
- *  (i.e. there were no uncategorized items).
- *  `false` if the user chose to abort.
  */
 CleanupPlanner.prototype.makePlan = function makePlan (cleanupRules, stockingRules) {
     var plan = {
@@ -1264,6 +1247,7 @@ CleanupPlanner.prototype.makePlan = function makePlan (cleanupRules, stockingRul
         clanStash: new Map(),
         reminder: new Map(),
         gift: new Map(),
+        uncategorized: [],
         cleanupRules: cleanupRules,
         stockingRules: stockingRules,
     };
@@ -1345,18 +1329,19 @@ CleanupPlanner.prototype.makePlan = function makePlan (cleanupRules, stockingRul
                     case 'KEEP':
                         break;
                     default:
-                        if (this.checkStopForRelay(doodad, stockingRules))
-                            { return null; }
+                        this.noteUncategorized(plan, doodad, stockingRules);
                 }
             }
         }
         else {
-            if (this.checkStopForRelay(doodad, stockingRules))
-                { return null; }
-            // Potentially disasterous, but this will cause the script to sell off unlisted items, just like it used to.
-            if (kolmafia.toBoolean(zlib_ash.getvar('BaleOCD_MallDangerously')))
-                { plan.mallsell.set(doodad, excess); } // Backwards compatibility FTW!
+            this.noteUncategorized(plan, doodad, stockingRules);
         }
+    }
+    if (plan.uncategorized.length > 0) {
+        var names = plan.uncategorized
+            .map(item => item.name)
+            .sort((a, b) => a.localeCompare(b));
+        error(("Philter: " + (names.length) + " uncategorized item(s) skipped (categorize in Philter Manager): " + (names.join(', '))));
     }
     return plan;
 };
@@ -1877,15 +1862,11 @@ function doPhilter(config) {
         cleanupMoveToClanStash,
         cleanupSendGifts ];
     var plan = planner.makePlan(cleanupRules, stockingRules);
-    if (!plan)
-        { return { success: false, finalSale: finalSale }; }
     for (var actionFunc of actions) {
         var result = actionFunc(plan, config);
         finalSale += result.profit;
         if (result.shouldReplan) {
             plan = planner.makePlan(cleanupRules, stockingRules);
-            if (!plan)
-                { return { success: false, finalSale: finalSale }; }
         }
     }
     if (zlib_ash.getvar('BaleOCD_Stock') === '1' && !config.simulateOnly) {

@@ -16,9 +16,7 @@ import {
   itemAmount,
   myPath,
   retrieveItem,
-  toBoolean,
   toItem,
-  userConfirm,
 } from 'kolmafia';
 import {getvar} from 'zlib.ash';
 import {countIngredient, fullAmount} from './util';
@@ -65,6 +63,8 @@ export interface CleanupPlan {
    * Maps target player name => item => quantity.
    */
   gift: Map<string, Map<Item, number>>;
+  /** Cleanable items with no rule, left alone and listed once (sorted by name). */
+  uncategorized: Item[];
 
   /** Cleanup rules used to generate this plan. */
   cleanupRules: ReadonlyCleanupRules;
@@ -112,50 +112,33 @@ export function cleanupAmount(
 }
 
 export class CleanupPlanner {
-  // When malling dangerously, don't ask the user about uncategorized items
-  shouldAskAboutUncategorizedItems = !toBoolean(
-    getvar('BaleOCD_MallDangerously')
-  );
-
-  // Don't stop if "don't ask user" or it is a quest item, or it is being stocked.
-  checkStopForRelay(item: Item, stockingRules: ReadonlyStockingRules): boolean {
-    if (!this.shouldAskAboutUncategorizedItems || !isCleanable(item)) {
-      return false;
-    }
-    // If we need to stock up on the item, don't bother the user about it
+  /**
+   * Records an item that has no cleanup rule. Upstream asked the user whether
+   * to abort here; this fork never asks and never sells: the item stays, and
+   * `makePlan()` lists it once. Quest/untouchable items and items a stocking
+   * rule still wants more of are not listed.
+   */
+  noteUncategorized(
+    plan: CleanupPlan,
+    item: Item,
+    stockingRules: ReadonlyStockingRules
+  ): void {
+    if (!isCleanable(item)) return;
     const stockingRule = stockingRules.get(item);
-    if (stockingRule && fullAmount(item) <= stockingRule.amount) {
-      return false;
-    }
-
-    if (
-      userConfirm(
-        'Uncategorized item(s) have been found in inventory.\nAbort to categorize those items with the relay script?'
-      )
-    ) {
-      throw new Error(
-        'Please use the relay script to categorize missing items in inventory.'
-      );
-    }
-    this.shouldAskAboutUncategorizedItems = false;
-    return false;
+    if (stockingRule && fullAmount(item) <= stockingRule.amount) return;
+    plan.uncategorized.push(item);
   }
 
   /**
    * Examines the inventory and generates an appropriate execution plan.
-   * If it finds uncategorized items in inventory, it asks the user whether it
-   * should abort. If the user answers "No", it will not ask the user again for
-   * the current `CleanupPlanner` instance.
+   * Uncategorized items are skipped and listed in one red line.
    * @param cleanupRules Cleanup rules to use
    * @param stockingRules Stocking rules to use
-   * @return `true` if the user chose to continue, or was not asked at all
-   *      (i.e. there were no uncategorized items).
-   *      `false` if the user chose to abort.
    */
   makePlan(
     cleanupRules: ReadonlyCleanupRules,
     stockingRules: ReadonlyStockingRules
-  ): CleanupPlan | null {
+  ): CleanupPlan {
     const plan: CleanupPlan = {
       breakBricko: new Map(),
       make: new Map(),
@@ -169,6 +152,7 @@ export class CleanupPlanner {
       clanStash: new Map(),
       reminder: new Map(),
       gift: new Map(),
+      uncategorized: [],
       cleanupRules,
       stockingRules,
     };
@@ -257,15 +241,25 @@ export class CleanupPlanner {
             case 'KEEP':
               break;
             default:
-              if (this.checkStopForRelay(doodad, stockingRules)) return null;
+              this.noteUncategorized(plan, doodad, stockingRules);
           }
         }
       } else {
-        if (this.checkStopForRelay(doodad, stockingRules)) return null;
-        // Potentially disasterous, but this will cause the script to sell off unlisted items, just like it used to.
-        if (toBoolean(getvar('BaleOCD_MallDangerously')))
-          plan.mallsell.set(doodad, excess); // Backwards compatibility FTW!
+        this.noteUncategorized(plan, doodad, stockingRules);
       }
+    }
+
+    if (plan.uncategorized.length > 0) {
+      const names = plan.uncategorized
+        .map(item => item.name)
+        .sort((a, b) => a.localeCompare(b));
+      logger.error(
+        `Philter: ${
+          names.length
+        } uncategorized item(s) skipped (categorize in Philter Manager): ${names.join(
+          ', '
+        )}`
+      );
     }
     return plan;
   }

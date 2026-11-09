@@ -96,14 +96,12 @@ function doPhilter(config: Readonly<PhilterConfig>): {
   ];
 
   let plan = planner.makePlan(cleanupRules, stockingRules);
-  if (!plan) return {success: false, finalSale};
 
   for (const actionFunc of actions) {
     const result = actionFunc(plan, config);
     finalSale += result.profit;
     if (result.shouldReplan) {
       plan = planner.makePlan(cleanupRules, stockingRules);
-      if (!plan) return {success: false, finalSale};
     }
   }
 

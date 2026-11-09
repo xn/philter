@@ -53,8 +53,8 @@ function printMallAndMakePriceCache(
     for (const [item, amount] of chunk) {
       let msg = `${amount} ${item}`;
 
-      // If BaleOCD_MallDangerously is set, we may be mallselling items that do
-      // not have a rule. If so, we must choose sensible defaults.
+      // Every MALL item has a rule (this fork never sells unlisted items),
+      // but keep the lookup tolerant for the type checker.
       const rule = cleanupRules.get(item);
       if (rule) {
         assert.ok(
