@@ -242,6 +242,9 @@ function setDefaultConfig() {
     zlib_ash.setvar('BaleOCD_Stock', kolmafia.toInt(0)); // Needed to coerce JS number to ASH int
     // Should Hangk's Storange be emptied? (0: no, 1: yes)
     zlib_ash.setvar('BaleOCD_EmptyHangks', kolmafia.toInt(0)); // Needed to coerce JS number to ASH int
+    // Player to kmail tradeable AUTO items to instead of autoselling them
+    // (https://autosell.lib.co.nz/ pays autosell value +5%, no cut). '' = local.
+    zlib_ash.setvar('BaleOCD_AutosellBot', 'autosell');
     // Controls whether to run OCD-Cleanup if the player is in Ronin/Hardcore.
     // -"ask": Ask the user
     // -"never": Never run if in Ronin/Hardcore
@@ -853,8 +856,38 @@ function safeBatchItems(items, process, onBatchError) {
     }
 }
 
-function printAutosell(items) {
-    var expectedProfitTotal = 0;
+/** Kmail message sent with each batch to the autosell bot. */
+var BOT_MESSAGE = 'Philter autosell';
+/**
+ * Name of the autosell bot (https://autosell.lib.co.nz/), or `''` to autosell
+ * locally as upstream Philter does. The bot wears selling shorts (+5% autosell
+ * value), takes no cut, and kmails the meat, a receipt and anything it cannot
+ * handle back. A name of "false" is the upstream mall-multi bug and is treated
+ * as empty.
+ */
+function autosellBotName() {
+    var bot = zlib_ash.getvar('BaleOCD_AutosellBot').trim();
+    if (bot.toLowerCase() === 'false') {
+        warn(("Invalid autosell bot name (\"" + bot + "\"); autoselling locally instead."));
+        return '';
+    }
+    return bot;
+}
+/**
+ * Splits AUTO items into those the bot can receive by kmail (tradeable) and
+ * those that must be autosold locally.
+ */
+function splitForBot(items) {
+    var bot = new Map();
+    var local = new Map();
+    for (var [item, amount] of items) {
+        (kolmafia.isTradeable(item) ? bot : local).set(item, amount);
+    }
+    return { bot: bot, local: local };
+}
+/** Logs `prefix` + items, 11 per line, and returns their local autosell value. */
+function printItems(prefix, items) {
+    var total = 0;
     for (var chunk of splitItemsSorted(items, 11)) {
         var messages = [];
         var lineValue = 0;
@@ -862,27 +895,38 @@ function printAutosell(items) {
             lineValue += amount * kolmafia.autosellPrice(item);
             messages.push((amount + " " + item));
         }
-        info(("autosell " + (messages.join(', '))));
+        info((prefix + " " + (messages.join(', '))));
         info(' ');
-        expectedProfitTotal += lineValue;
+        total += lineValue;
     }
-    info(("Total autosale = " + (zlib_ash.rnum(expectedProfitTotal))));
-    return expectedProfitTotal;
+    return total;
 }
 /**
- * Cleanup action that autosells items.
+ * Cleanup action that autosells items, locally or through the autosell bot.
  */
 var cleanupAutosell = (plan, config) => {
     var items = plan.autosell;
     if (items.size === 0)
         { return { shouldReplan: false, profit: 0 }; }
-    var profit = printAutosell(items);
+    var botName = autosellBotName();
+    var ref = botName
+        ? splitForBot(items)
+        : { bot: new Map(), local: new Map(items) };
+    var bot = ref.bot;
+    var local = ref.local;
+    var profit = printItems('autosell', local) +
+        printItems(("send to autosell bot '" + botName + "':"), bot);
+    info(("Total autosale = " + (zlib_ash.rnum(profit))));
     if (!config.simulateOnly) {
-        safeBatchItems(items, chunk => {
+        // Local first: a kmail failure then costs nothing that could be sold here.
+        safeBatchItems(local, chunk => {
             for (var [item, amount] of chunk) {
                 ok(kolmafia.autosell(amount, item), ("Failed to batch: autosell(" + amount + ", Item.get(`" + item + "`))"));
             }
         }, chunk => fail(("Failed to autosell " + (chunk.size) + " item(s)")));
+        if (bot.size > 0) {
+            sendToPlayer({ recipent: botName, message: BOT_MESSAGE, items: bot });
+        }
     }
     return { shouldReplan: false, profit: profit };
 };
