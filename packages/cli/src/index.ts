@@ -4,7 +4,7 @@ import {
   logger,
   setDefaultConfig,
 } from '@philter/common/kol';
-import {canInteract, userConfirm, wait} from 'kolmafia';
+import {canInteract, userConfirm} from 'kolmafia';
 import {getvar, rnum} from 'zlib.ash';
 import {philter} from './philter';
 
@@ -29,15 +29,6 @@ function canInteractCheck(): boolean {
 // TODO: Parse CLI arguments, merge them with ZLib configs, and make the rest of
 // the app use the merged config instead of accessing settings directly.
 export function main(): void {
-  // TODO: Remove this warning when ocd-cleanup.ash is deprecated
-  logger.warn(
-    'Philter.js is currently in alpha. It may contain bugs which could destroy your items.'
-  );
-  logger.warn(
-    "If you want to stay on the safe side, halt this script and run 'ocd-cleanup.ash' instead."
-  );
-  wait(10);
-
   setDefaultConfig();
   checkProjectUpdates();
 

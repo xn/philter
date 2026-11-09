@@ -1972,10 +1972,6 @@ function canInteractCheck() {
 // TODO: Parse CLI arguments, merge them with ZLib configs, and make the rest of
 // the app use the merged config instead of accessing settings directly.
 function main() {
-    // TODO: Remove this warning when ocd-cleanup.ash is deprecated
-    warn('Philter.js is currently in alpha. It may contain bugs which could destroy your items.');
-    warn("If you want to stay on the safe side, halt this script and run 'ocd-cleanup.ash' instead.");
-    kolmafia.wait(10);
     setDefaultConfig();
     checkProjectUpdates();
     if (!canInteractCheck()) {

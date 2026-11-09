@@ -169,3 +169,20 @@ It is not used when `ocd_control()` is called from another script.
 - Original OCD Inventory Control repository: https://sourceforge.net/projects/ocd.bale.p/
 
 [zlib]: https://kolmafia.us/threads/zlib-zarqons-useful-function-library.2072
+
+## Fork changes (xn/philter, 2026-11-09)
+
+- Uncategorized items are never asked about and never sold: Philter leaves
+  them in inventory and prints one red line listing them.
+  `BaleOCD_MallDangerously` is gone.
+- `AUTO` items that are tradeable are kmailed to the
+  [AutoSell Bot](https://autosell.lib.co.nz/) (`autosell`, #3877087; pays
+  autosell value +5%, no cut, kmails the meat and a receipt back) instead of
+  being autosold. Non-tradeable `AUTO` items are still autosold locally.
+  ZLib var `BaleOCD_AutosellBot` holds the bot name; set it to `` to autosell
+  everything locally as upstream does.
+- The 10-second alpha warning at startup is gone.
+
+Build: `npx -y yarn@1.22.22 install && npx -y yarn@1.22.22 build:cli` writes
+`release/scripts/philter.js` (committed). Install in KoLmafia with
+`git checkout https://github.com/xn/philter.git chartreusenator`.
