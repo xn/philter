@@ -925,7 +925,9 @@ var cleanupAutosell = (plan, config) => {
             }
         }, chunk => fail(("Failed to autosell " + (chunk.size) + " item(s)")));
         if (bot.size > 0) {
-            sendToPlayer({ recipent: botName, message: BOT_MESSAGE, items: bot });
+            // kmail(), not sendToPlayer(): the latter falls back to paid gift
+            // packages when the recipient cannot receive kmail. Throws on failure.
+            kmail({ recipent: botName, message: BOT_MESSAGE, items: bot });
         }
     }
     return { shouldReplan: false, profit: profit };

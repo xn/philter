@@ -42,8 +42,8 @@ anything it cannot handle by kmail.
   `Total autosale = N` line keeps the local autosell value for both groups
   (the bot's 5% is not counted).
 - Simulation mode (`BaleOCD_Sim`) prints the same lines and sends nothing.
-- A kmail failure throws, as the mall-multi path does today. Items already
-  sent stay sent.
+- A kmail failure throws (kolmafia-util `kmail`, not `sendToPlayer`, which
+  would fall back to paid gift packages). Items already sent stay sent.
 
 ## Also in the fork
 
@@ -55,7 +55,8 @@ anything it cannot handle by kmail.
 - `release/` is committed build output, as upstream. Build, commit, push to
   `xn/philter`.
 - In KoLmafia: `git delete Loathing-Associates-Scripting-Society-philter-main`,
-  then `git checkout https://github.com/xn/philter.git`. `git update` pulls
+  then `git checkout https://github.com/xn/philter.git chartreusenator` (the
+  fork's working branch). `git update` pulls
   later changes; the Manager relay comes with it.
 - Loop side (separate repo): `src/tasks/pvp.ts` drops the OCDdata-diff guard
   and just runs `philter`; loop's `philter` flag stays.

@@ -1,6 +1,6 @@
 import {logger} from '@philter/common/kol';
 import {autosell, autosellPrice, isTradeable} from 'kolmafia';
-import {assert, sendToPlayer} from 'kolmafia-util';
+import {assert, kmail} from 'kolmafia-util';
 import {getvar, rnum} from 'zlib.ash';
 import {splitItemsSorted} from '../util';
 import {CleanupActionFunction, safeBatchItems} from './base';
@@ -95,7 +95,9 @@ export const cleanupAutosell: CleanupActionFunction = (plan, config) => {
       chunk => assert.fail(`Failed to autosell ${chunk.size} item(s)`)
     );
     if (bot.size > 0) {
-      sendToPlayer({recipent: botName, message: BOT_MESSAGE, items: bot});
+      // kmail(), not sendToPlayer(): the latter falls back to paid gift
+      // packages when the recipient cannot receive kmail. Throws on failure.
+      kmail({recipent: botName, message: BOT_MESSAGE, items: bot});
     }
   }
 

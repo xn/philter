@@ -179,8 +179,9 @@ It is not used when `ocd_control()` is called from another script.
   [AutoSell Bot](https://autosell.lib.co.nz/) (`autosell`, #3877087; pays
   autosell value +5%, no cut, kmails the meat and a receipt back) instead of
   being autosold. Non-tradeable `AUTO` items are still autosold locally.
-  ZLib var `BaleOCD_AutosellBot` holds the bot name; set it to `` to autosell
-  everything locally as upstream does.
+  ZLib var `BaleOCD_AutosellBot` holds the bot name; set it to an empty string
+  (edit `data/vars_<name>.txt` if the `zlib` command will not take one) to
+  autosell everything locally as upstream does.
 - The 10-second alpha warning at startup is gone.
 
 Build: `npx -y yarn@1.22.22 install && npx -y yarn@1.22.22 build:cli` writes
